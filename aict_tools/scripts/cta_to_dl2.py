@@ -24,7 +24,7 @@ ids = ['telescope_id', 'array_event_id', 'run_id']
 
 dl2_array_event_columns = [
     'pointing_altitude', 'pointing_azimuth',
-    'altitude', 'azimuth', 'mc_az', 'mc_alt', 'az', 'alt', 'num_triggered_mst', 'num_triggered_sst',
+    'mc_az', 'mc_alt', 'az', 'alt', 'num_triggered_mst', 'num_triggered_sst',
     'num_triggered_lst', 'num_triggered_telescopes', 'mc_energy', 'mc_core_x', 'mc_core_y', 'mc_h_first_int', 'mc_x_max'
 ]
 
