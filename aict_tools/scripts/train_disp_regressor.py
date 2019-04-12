@@ -80,8 +80,8 @@ def main(configuration_path, signal_path, predictions_path, disp_model_path, sig
     )
 
     # generate features if given in config
-    if model_config.feature_generation:
-        feature_generation(df, model_config.feature_generation, inplace=True)
+    # if model_config.feature_generation:
+    #     feature_generation(df, model_config.feature_generation, inplace=True)
 
     df_train = convert_to_float32(df[config.disp.features])
     df_train.dropna(how='any', inplace=True)
