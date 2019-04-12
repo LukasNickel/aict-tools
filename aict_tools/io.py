@@ -212,7 +212,7 @@ def read_telescope_data(path, aict_config, columns=None, feature_generation_conf
             file_path=path,
             key=aict_config.telescope_events_key,
             # columns=telescope_event_columns,
-            columns=['run_id', 'array_event_id', 'width'],
+            columns=['run_id', 'array_event_id', 'width'],  ###?????????
         ).reset_index(drop=True)
 
         array_event_index = read_data(
@@ -318,13 +318,14 @@ class HDFColumnAppender():
         return self
     
     def __exit__(self, exc_type, exc_value, exc_traceback):
-        if self.is_tables_format:
-            with tables.open_file(self.path, 'r+') as t:
-                try:
-                    t.remove_node(f'/{self.table_name}', recursive='force')
-                    t.rename_node(f'/{self.table_name}_copy', newname=self.table_name)
-                except tables.exceptions.NoSuchNodeError:
-                    pass
+        return 0
+        # if self.is_tables_format:
+        #     with tables.open_file(self.path, 'r+') as t:
+        #         try:
+        #             t.remove_node(f'/{self.table_name}', recursive='force')
+        #             t.rename_node(f'/{self.table_name}_copy', newname=self.table_name)
+        #         except tables.exceptions.NoSuchNodeError:
+        #             pass
 
     def add_data(self, data, new_column_name, start, stop):
         '''
@@ -342,11 +343,19 @@ class HDFColumnAppender():
             last event to replace in the file
         '''
         if self.is_tables_format:
+            logging.info('reached appender.add_data')
             with pd.HDFStore(self.path, 'r+') as store:
+                #from IPython import embed; embed()
+                #logging.info(store.dtypes)
+                log.setLevel(logging.DEBUG)
                 df = store.select(self.table_name, start=start, stop=stop)
+                #log.info(df.dtypes)
+                #logging.info(data.dtypes)
                 df[new_column_name] = data
+                logging.info(df.keys())
                 # store.remove(self.table_name, start=0, stop=stop-start)
-                store.put(self.table_name + '_copy', df, format='t', append=True)
+                #store.put(self.table_name + '_copy', df, format='t', append=True)
+                store.put(self.table_name, df, format='t')
         else:
             _append_column_to_h5py(self.path, data, self.table_name, new_column_name)
 
