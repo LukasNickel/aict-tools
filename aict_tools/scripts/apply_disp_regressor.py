@@ -55,9 +55,6 @@ def main(configuration_path, data_path, disp_model_path, sign_model_path, chunks
 
     n_del_cols = 0
 
-    log.info(columns_to_delete)
-    #log.info(get_column_names_in_file(data_path, config.telescope_events_key))
-    #from IPython import embed; embed()
     for column in columns_to_delete:
         if config.has_multiple_telescopes:
             drop_prediction_column(
@@ -107,25 +104,17 @@ def main(configuration_path, data_path, disp_model_path, sign_model_path, chunks
     cog_x_column = model_config.cog_x_column
     cog_y_column = model_config.cog_y_column
     delta_column = model_config.delta_column
-    #log.info(cog_x_column, cog_y_column, delta_column)
     if config.has_multiple_telescopes:
         chunked_frames = []
 
     with HDFColumnAppender(data_path, config.telescope_events_key) as appender:
         for df_data, start, stop in tqdm(df_generator):
-            # log.info(type(df_data))
-            # log.info(df_data.columns)
-            # log.info(df_data.head())
-            #log.info(df_data[cog_x_column])
-
             disp = predict_disp(
                 df_data[model_config.features], disp_model, sign_model
             )
 
             source_x = df_data[cog_x_column] + disp * np.cos(df_data[delta_column])
             source_y = df_data[cog_y_column] + disp * np.sin(df_data[delta_column])
-            log.info(disp.shape)
-            log.info(source_x.shape)
 
             if config.has_multiple_telescopes:
                 d = df_data[['run_id', 'array_event_id']].copy()
@@ -133,16 +122,10 @@ def main(configuration_path, data_path, disp_model_path, sign_model_path, chunks
                 d['disp'] = disp
                 d['source_x'] = source_x
                 d['source_y'] = source_y
-                log.info(d)
                 chunked_frames.append(d)
                 log.info(d.keys()) ###looks good
-            # source_x = df_data.cog_x + disp * np.cos(df_data.delta)
-            # source_y = df_data.cog_y + disp * np.sin(df_data.delta)
-            #log.info(source_x, source_y)
             appender.add_data(source_x, 'source_x_prediction', start, stop)
-            #appender.table_name = appender.table_name + '_copy'
             appender.add_data(source_y, 'source_y_prediction', start, stop)
-            #appender.table_name = appender.table_name + '_copy'
             appender.add_data(disp, 'disp_prediction', start, stop)
         log.info('loop done')
     log.info('with() done')

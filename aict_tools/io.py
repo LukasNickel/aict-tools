@@ -343,16 +343,10 @@ class HDFColumnAppender():
             last event to replace in the file
         '''
         if self.is_tables_format:
-            logging.info('reached appender.add_data')
             with pd.HDFStore(self.path, 'r+') as store:
-                #from IPython import embed; embed()
-                #logging.info(store.dtypes)
                 log.setLevel(logging.DEBUG)
                 df = store.select(self.table_name, start=start, stop=stop)
-                #log.info(df.dtypes)
-                #logging.info(data.dtypes)
                 df[new_column_name] = data
-                logging.info(df.keys())
                 # store.remove(self.table_name, start=0, stop=stop-start)
                 #store.put(self.table_name + '_copy', df, format='t', append=True)
                 store.put(self.table_name, df, format='t')
