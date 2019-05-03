@@ -24,6 +24,9 @@ class AICTConfig:
         'separator',
         'has_multiple_telescopes',
         'class_name',
+        'array_event_column',  ## maybe new config for cta disp?
+        'id_to_tel',  #
+        'id_to_cam',  # 
     )
 
     @classmethod
@@ -64,6 +67,11 @@ class AICTConfig:
         if 'separator' in config:
             self.separator = SeparatorConfig(config)
 
+        self.array_event_column = config.get('array_event_column')
+        self.id_to_tel = config.get('id_to_tel')
+        self.id_to_cam = config.get('id_to_cam')
+
+
 
 class DispConfig:
     __slots__ = [
@@ -82,10 +90,14 @@ class DispConfig:
         'cog_x_column',
         'cog_y_column',
         'delta_column',
+ #       'array_event_column',  ## maybe new config for cta disp?
+ #       'id_to_tel',  #
+ #       'id_to_cam',  # 
     ]
 
     def __init__(self, config):
         model_config = config['disp']
+
         self.disp_regressor = eval(model_config['disp_regressor'])
         self.sign_classifier = eval(model_config['sign_classifier'])
 
@@ -115,11 +127,16 @@ class DispConfig:
         self.cog_x_column = model_config.get('cog_x_column', 'cog_x')
         self.cog_y_column = model_config.get('cog_y_column', 'cog_y')
         self.delta_column = model_config.get('delta_column', 'delta')
+        # these are not used by fact (new config object??)
+#        self.array_event_column = model_config.get('array_event_column')
+#        self.id_to_tel = model_config.get('id_to_tel')
+#        self.id_to_cam = model_config.get('id_to_cam')
 
         cols = {
             self.cog_x_column,
             self.cog_y_column,
             self.delta_column,
+        #    self.id_to_tel,
         }
 
         cols.update(model_config['features'])
