@@ -61,3 +61,48 @@ def horizontal_to_camera_cta_simtel(df, config, model_config):
             source_x.append(cam_coords.x.value)
             source_y.append(cam_coords.y.value)
     return np.array(source_x), np.array(source_y)
+
+
+
+def camera_to_horizontal_cta_simtel(df, config, model_config):
+    source_alt = []
+    source_az = []
+    # using these as a placeholder
+    # necessary to use the coord trafos but not actually used?
+    obstime = Time('2013-11-01T03:00')
+    location = EarthLocation.of_site('Roque de los Muchachos')
+
+    array_ids = df[config.array_event_column].unique()
+    id_to_tel = config.id_to_tel
+    id_to_cam = config.id_to_cam
+    for array_id in array_ids:
+        tel_event_rows = np.where(df.array_event_id.values == array_id)[0]
+        for tel_event in tel_event_rows:  # tel_event is the index of the row of the actual tel_event
+            # construct SkyCoord
+            alt_pointing = df.iloc[tel_event].pointing_altitude * u.rad
+            az_pointing = df.iloc[tel_event].pointing_azimuth * u.rad
+            tel_pointing = SkyCoord(
+                alt=alt_pointing,
+                az=az_pointing,
+                frame=AltAz(
+                    obstime=obstime,
+                    location=location)
+            )
+            # construct camera frame
+            focal_length = df.iloc[tel_event].focal_length * u.m
+            rotation = 0 * u.deg # always?
+            camera_frame = CameraFrame(
+                focal_length=focal_length,
+                rotation=rotation,
+                telescope_pointing=tel_pointing,
+            )
+            # construct camera coords
+            x_predict = df.iloc[tel_event]['x'] * u.m
+            y_predict = df.iloc[tel_event]['y'] * u.m
+            cam_coords = SkyCoord(x_predict, y_predict, frame=camera_frame)
+            # transform to altaz
+            horizon = camera_coord.transform_to(
+                AltAz(location=location, obstime=obstime))
+            source_alt.append(horizon.alt.value)
+            source_az.append(horizon.az.value)
+    return np.array(source_alt), np.array(source_az)
