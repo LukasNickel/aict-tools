@@ -5,104 +5,83 @@ from astropy.coordinates import EarthLocation
 from astropy.coordinates import AltAz
 from astropy.time import Time
 import logging
+import warnings
 
-from astropy.coordinates.representation import REPRESENTATION_CLASSES
-REPRESENTATION_CLASSES.pop("planar")
+from ctapipe.coordinates import MissingFrameAttributeWarning
 from ctapipe.coordinates import CameraFrame
 from ctapipe.instrument import TelescopeDescription
+
+from tqdm import tqdm
+from joblib import delayed, Parallel
 
 
 log = logging.getLogger(__name__)
 
 
-## maybe use multiprocessing for the array event loop?
-def horizontal_to_camera_cta_simtel(df, config, model_config):
-    source_x = []
-    source_y = []
-    # using these as a placeholder
-    # necessary to use the coord trafos but not actually used?
-    obstime = Time('2013-11-01T03:00')
-    location = EarthLocation.of_site('Roque de los Muchachos')
+def horizontal_to_camera_cta_simtel(df):
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=MissingFrameAttributeWarning)
 
-    array_ids = df[config.array_event_column].unique()
-    id_to_tel = config.id_to_tel
-    id_to_cam = config.id_to_cam
-    for array_id in array_ids:
-        tel_event_rows = np.where(df.array_event_id.values == array_id)[0]
-        for tel_event in tel_event_rows:  # tel_event is the index of the row of the actual tel_event
-            # construct SkyCoord
-            alt_pointing = df.iloc[tel_event].pointing_altitude * u.rad
-            az_pointing = df.iloc[tel_event].pointing_azimuth * u.rad
-            tel_pointing = SkyCoord(
-                alt=alt_pointing,
-                az=az_pointing,
-                frame=AltAz(
-                    obstime=obstime,
-                    location=location)
-            )
-            # construct camera frame
-            focal_length = df.iloc[tel_event].focal_length * u.m
-            rotation = 0 * u.deg # always?
-            camera_frame = CameraFrame(
-                focal_length=focal_length,
-                rotation=rotation,
-                telescope_pointing=tel_pointing,
-            )
-            # construct altaz frame
-            mc_alt = df.iloc[tel_event][model_config.source_zd_column] * u.deg  #zd == alt for now (only a name anyway)
-            mc_az = df.iloc[tel_event][model_config.source_az_column] * u.deg
-            altaz = AltAz(
-                    az=mc_az,
-                    alt=mc_alt,
-                    location=location,
-                    obstime=obstime,
-            )
-            cam_coords = altaz.transform_to(camera_frame)
-            source_x.append(cam_coords.x.value)
-            source_y.append(cam_coords.y.value)
-    return np.array(source_x), np.array(source_y)
+        alt_pointing = u.Quantity(df.pointing_altitude.to_numpy(), u.rad, copy=False)
+        az_pointing = u.Quantity(df.pointing_azimuth.to_numpy(), u.rad, copy=False)
+        fl = u.Quantity(df.focal_length.to_numpy(), u.m, copy=False)
+        # im preprocessing als rad speichern?
+        mc_alt = u.Quantity(df.mc_alt.to_numpy(), u.deg, copy=False)
+        mc_az = u.Quantity(df.mc_az.to_numpy(), u.deg, copy=False)
+
+        altaz = AltAz()
+        
+        tel_pointing = SkyCoord(
+            alt=alt_pointing,
+            az=az_pointing,
+            frame=altaz,
+        )
+        camera_frame = CameraFrame(
+            focal_length=fl,
+            telescope_pointing=tel_pointing,
+        )
+        
+        source_altaz = SkyCoord(
+            az=mc_az,
+            alt=mc_alt,
+            frame=altaz,
+        )
+        
+        cam_coords = source_altaz.transform_to(camera_frame)
+        return cam_coords.x.to_value(u.m), cam_coords.y.to_value(u.m)
 
 
+def camera_to_horizontal_cta_simtel(df):
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', category=MissingFrameAttributeWarning)
 
-def camera_to_horizontal_cta_simtel(df, config, model_config):
-    source_alt = []
-    source_az = []
-    # using these as a placeholder
-    # necessary to use the coord trafos but not actually used?
-    obstime = Time('2013-11-01T03:00')
-    location = EarthLocation.of_site('Roque de los Muchachos')
+        alt_pointing = u.Quantity(df.pointing_altitude.to_numpy(), u.rad, copy=False)
+        az_pointing = u.Quantity(df.pointing_azimuth.to_numpy(), u.rad, copy=False)
+        x = u.Quantity(df.source_x_prediction.to_numpy(), u.m, copy=False)
+        y = u.Quantity(df.source_y_prediction.to_numpy(), u.m, copy=False)
+        fl = u.Quantity(df.focal_length.to_numpy(), u.m, copy=False)
+        
+        altaz = AltAz()
 
-    array_ids = df[config.array_event_column].unique()
-    id_to_tel = config.id_to_tel
-    id_to_cam = config.id_to_cam
-    for array_id in array_ids:
-        tel_event_rows = np.where(df.array_event_id.values == array_id)[0]
-        for tel_event in tel_event_rows:  # tel_event is the index of the row of the actual tel_event
-            # construct SkyCoord
-            alt_pointing = df.iloc[tel_event].pointing_altitude * u.rad
-            az_pointing = df.iloc[tel_event].pointing_azimuth * u.rad
-            tel_pointing = SkyCoord(
-                alt=alt_pointing,
-                az=az_pointing,
-                frame=AltAz(
-                    obstime=obstime,
-                    location=location)
-            )
-            # construct camera frame
-            focal_length = df.iloc[tel_event].focal_length * u.m
-            rotation = 0 * u.deg # always?
-            camera_frame = CameraFrame(
-                focal_length=focal_length,
-                rotation=rotation,
-                telescope_pointing=tel_pointing,
-            )
-            # construct camera coords
-            x_predict = df.iloc[tel_event]['x'] * u.m
-            y_predict = df.iloc[tel_event]['y'] * u.m
-            cam_coords = SkyCoord(x_predict, y_predict, frame=camera_frame)
-            # transform to altaz
-            horizon = camera_coord.transform_to(
-                AltAz(location=location, obstime=obstime))
-            source_alt.append(horizon.alt.value)
-            source_az.append(horizon.az.value)
-    return np.array(source_alt), np.array(source_az)
+        tel_pointing = SkyCoord(
+            alt=alt_pointing,
+            az=az_pointing,
+            frame=altaz,
+        )
+
+        frame = CameraFrame(
+            focal_length = fl,
+            telescope_pointing=tel_pointing,
+        )
+
+
+        cam_coords = SkyCoord(
+                x=x,
+                y=y,
+                frame=frame,
+        )
+
+        source_altaz = cam_coords.transform_to(altaz)
+
+        # rad verwenden? 
+        return source_altaz.alt.to_value(u.deg), source_altaz.az.to_value(u.deg)

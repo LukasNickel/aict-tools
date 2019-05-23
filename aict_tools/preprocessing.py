@@ -36,6 +36,8 @@ def check_valid_rows(df):
 
 
 def calc_true_disp(source_x, source_y, cog_x, cog_y, delta):
+    '''Calc true disp, delta in rad'''
+
     true_disp = euclidean_distance(
         source_x, source_y,
         cog_x, cog_y
@@ -45,6 +47,8 @@ def calc_true_disp(source_x, source_y, cog_x, cog_y, delta):
         cog_y - source_y,
         cog_x - source_x,
     )
+
+    # this requires delta to be in rad!
     true_sign = np.sign(np.abs(delta - true_delta) - np.pi / 2)
 
     return true_disp, true_sign
