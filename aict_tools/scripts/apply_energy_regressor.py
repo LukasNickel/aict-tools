@@ -35,7 +35,9 @@ def main(configuration_path, data_path, model_path, chunksize, n_jobs, yes, verb
     config = AICTConfig.from_yaml(configuration_path)
     model_config = config.energy
 
-    prediction_column_name = config.class_name + '_energy_prediction'
+    prediction_column_name = model_config.class_name + '_prediction'
+    log.info(prediction_column_name)
+    log.info(config.has_multiple_telescopes)
     drop_prediction_column(
         data_path, group_name=config.telescope_events_key,
         column_name=prediction_column_name, yes=yes

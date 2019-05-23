@@ -70,6 +70,9 @@ def main(configuration_path, data_path, disp_model_path, sign_model_path, chunks
             )            
             log.warn("Deleted {} from the feature set.".format(column))
             n_del_cols += 1
+
+    ## Wo kommst das hier her? Auskommentieren?
+
         # if column in get_column_names_in_file(data_path, config.telescope_events_key):
         #     if not yes:
         #         click.confirm(
@@ -109,37 +112,39 @@ def main(configuration_path, data_path, disp_model_path, sign_model_path, chunks
 
     with HDFColumnAppender(data_path, config.telescope_events_key) as appender:
         for df_data, start, stop in tqdm(df_generator):
+
             disp = predict_disp(
                 df_data[model_config.features], disp_model, sign_model
             )
-
+            # cht_preprocessing speichert delta in grad -> dort ändern und hier entfernen
+            if config.has_multiple_telescopes:
+                df_data[model_config.delta_column] = np.deg2rad(df_data[model_config.delta_column])
             source_x = df_data[cog_x_column] + disp * np.cos(df_data[delta_column])
             source_y = df_data[cog_y_column] + disp * np.sin(df_data[delta_column])
 
             if config.has_multiple_telescopes:
                 d = df_data[['run_id', 'array_event_id']].copy()
                 from ..cta_helpers import camera_to_horizontal_cta_simtel
-                source_alt, source_az = camera_to_horizontal_cta_simtel(df, config, model_config)                
+                df_data['source_x_prediction'] = source_x
+                df_data['source_y_prediction'] = source_y
+                source_alt, source_az = camera_to_horizontal_cta_simtel(df_data)                
                 d['disp'] = disp
                 d['source_x'] = source_x
                 d['source_y'] = source_y
                 d['source_alt'] = source_alt
                 d['source_az'] = source_az
                 chunked_frames.append(d)
-                log.info(d.keys()) ###looks good
+
             appender.add_data(source_x, 'source_x_prediction', start, stop)
             appender.add_data(source_y, 'source_y_prediction', start, stop)
             appender.add_data(source_alt, 'source_alt_prediction', start, stop)
             appender.add_data(source_az, 'source_az_prediction', start, stop)
             appender.add_data(disp, 'disp_prediction', start, stop)
-        log.info('loop done')
-    log.info('with() done')
 
     
     if config.has_multiple_telescopes:
-
-        log.info(d.keys())
-        d = pd.concat(chunked_frames).groupby(
+        d = pd.concat(chunked_frames)
+        d = d.groupby(
             ['run_id', 'array_event_id'], sort=False
         ).agg(['mean', 'std'])
         append_column_to_hdf5(
@@ -154,6 +159,7 @@ def main(configuration_path, data_path, disp_model_path, sign_model_path, chunks
         append_column_to_hdf5(
             data_path, d['source_az']['std'].values, config.array_events_key, 'source_az' + '_std'
         )
+
 
 if __name__ == '__main__':
     # pylint: disable=no-value-for-parameter

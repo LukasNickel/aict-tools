@@ -65,11 +65,10 @@ def main(configuration_path, signal_path, predictions_path, disp_model_path, sig
         n_sample=model_config.n_signal
     )
     log.info('Total number of events: {}'.format(len(df)))
-    from IPython import embed
-    #embed()
+
     if config.has_multiple_telescopes: ## using this as a synonym for a cta simtel file for now
         from ..cta_helpers import horizontal_to_camera_cta_simtel
-        source_x, source_y = horizontal_to_camera_cta_simtel(df, config, model_config)
+        source_x, source_y = horizontal_to_camera_cta_simtel(df)
     else:
         source_x, source_y = horizontal_to_camera(
             az=df[model_config.source_az_column],
@@ -77,16 +76,18 @@ def main(configuration_path, signal_path, predictions_path, disp_model_path, sig
             az_pointing=df[model_config.pointing_az_column],
             zd_pointing=df[model_config.pointing_zd_column],
         )
-    log.debug(source_x)
-    log.debug(source_y)
 
+
+    # cta_preprocessing speichert delta in grad -> dort ändern und hier entfernen
+    if config.has_multiple_telescopes:
+        df[model_config.delta_column] = np.deg2rad(df[model_config.delta_column])
     df['true_disp'], df['true_sign'] = calc_true_disp(
         source_x, source_y,
         df[model_config.cog_x_column], df[model_config.cog_y_column],
         df[model_config.delta_column],
     )
-    #log.debug(df['true_disp'])
-    #log.debug(df['true_sign'])
+
+    # Warum ist das auskommentiert?
 
     # generate features if given in config
     # if model_config.feature_generation:

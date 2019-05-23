@@ -142,13 +142,13 @@ class DispConfig:
         cols.update(model_config['features'])
         if self.feature_generation:
             cols.update(self.feature_generation.needed_columns)
-        self.columns_to_read_apply = list(cols)
         cols.update({
             self.pointing_az_column,
             self.pointing_zd_column,
             self.source_az_column,
             self.source_zd_column,
         })
+        self.columns_to_read_apply = list(cols)
         self.columns_to_read_train = list(cols)
 
 
@@ -163,6 +163,7 @@ class EnergyConfig:
         'columns_to_read_apply',
         'target_column',
         'log_target',
+        'class_name',
     ]
 
     def __init__(self, config):
@@ -196,6 +197,7 @@ class EnergyConfig:
         self.columns_to_read_apply = list(cols)
         cols.add(self.target_column)
         self.columns_to_read_train = list(cols)
+        self.class_name = model_config.get('class_name')
 
 
 class SeparatorConfig:
