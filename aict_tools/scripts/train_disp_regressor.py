@@ -41,6 +41,8 @@ def main(configuration_path, signal_path, predictions_path, disp_model_path, sig
     SIGN_MODEL_PATH: Path to save the disp model to.
         Allowed extensions are .pkl and .pmml.
         If extension is .pmml, then both pmml and pkl file will be saved
+
+    
     '''
 
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
@@ -66,9 +68,11 @@ def main(configuration_path, signal_path, predictions_path, disp_model_path, sig
     )
     log.info('Total number of events: {}'.format(len(df)))
 
-    if config.has_multiple_telescopes: ## using this as a synonym for a cta simtel file for now
+    if config.experiment_name.lower() == 'cta': 
         from ..cta_helpers import horizontal_to_camera_cta_simtel
         source_x, source_y = horizontal_to_camera_cta_simtel(df)
+        # cta uses deg instead of rad
+        df[model_config.delta_column] = np.deg2rad(df[model_config.delta_column])
     else:
         source_x, source_y = horizontal_to_camera(
             az=df[model_config.source_az_column],
@@ -76,22 +80,16 @@ def main(configuration_path, signal_path, predictions_path, disp_model_path, sig
             az_pointing=df[model_config.pointing_az_column],
             zd_pointing=df[model_config.pointing_zd_column],
         )
-
-
-    # cta_preprocessing speichert delta in grad -> dort ändern und hier entfernen
-    if config.has_multiple_telescopes:
-        df[model_config.delta_column] = np.deg2rad(df[model_config.delta_column])
+        
     df['true_disp'], df['true_sign'] = calc_true_disp(
         source_x, source_y,
         df[model_config.cog_x_column], df[model_config.cog_y_column],
         df[model_config.delta_column],
     )
 
-    # Warum ist das auskommentiert?
-
     # generate features if given in config
-    # if model_config.feature_generation:
-    #     feature_generation(df, model_config.feature_generation, inplace=True)
+    if model_config.feature_generation:
+        feature_generation(df, model_config.feature_generation, inplace=True)
 
     df_train = convert_to_float32(df[config.disp.features])
     df_train.dropna(how='any', inplace=True)

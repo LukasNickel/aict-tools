@@ -35,18 +35,18 @@ def main(configuration_path, data_path, model_path, chunksize, n_jobs, yes, verb
     config = AICTConfig.from_yaml(configuration_path)
     model_config = config.energy
 
-    prediction_column_name = model_config.class_name + '_prediction'
-    log.info(prediction_column_name)
-    log.info(config.has_multiple_telescopes)
+    prediction_column_name = config.class_name + 'energy_prediction'
+
+
+    if config.experiment_name.lower() == 'cta':
+        group_name = config.array_events_key
+    else:
+        group_name = config.telescope_events_key
+
     drop_prediction_column(
-        data_path, group_name=config.telescope_events_key,
+        data_path, group_name=group_name, 
         column_name=prediction_column_name, yes=yes
     )
-    if config.has_multiple_telescopes:
-        drop_prediction_column(
-            data_path, group_name=config.array_events_key,
-            column_name=prediction_column_name, yes=yes
-        )
 
     log.debug('Loading model')
     model = joblib.load(model_path)
@@ -60,7 +60,8 @@ def main(configuration_path, data_path, model_path, chunksize, n_jobs, yes, verb
         feature_generation_config=model_config.feature_generation
     )
 
-    if config.has_multiple_telescopes:
+    # collect predictions to calculate mean/std
+    if config.experiment_name.lower() == 'cta':
         chunked_frames = []
 
     with HDFColumnAppender(data_path, config.telescope_events_key) as appender:
@@ -72,13 +73,13 @@ def main(configuration_path, data_path, model_path, chunksize, n_jobs, yes, verb
                 log_target=model_config.log_target,
             )
 
-            if config.has_multiple_telescopes:
+            if config.experiment_name.lower() == 'cta':
                 d = df_data[['run_id', 'array_event_id']].copy()
                 d[prediction_column_name] = energy_prediction
                 chunked_frames.append(d)
             appender.add_data(energy_prediction,  prediction_column_name, start, stop)
 
-    if config.has_multiple_telescopes:
+    if config.experiment_name.lower() == 'cta':
         d = pd.concat(chunked_frames).groupby(
             ['run_id', 'array_event_id'], sort=False
         ).agg(['mean', 'std'])
