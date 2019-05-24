@@ -22,11 +22,11 @@ class AICTConfig:
         'disp',
         'energy',
         'separator',
-        'has_multiple_telescopes',
+        'experiment_name',
         'class_name',
-        'array_event_column',  ## maybe new config for cta disp?
-        'id_to_tel',  #
-        'id_to_cam',  # 
+        'array_event_column',
+        'id_to_tel',
+        'id_to_cam', 
     )
 
     @classmethod
@@ -35,7 +35,7 @@ class AICTConfig:
             return cls(yaml.load(f))
 
     def __init__(self, config):
-        self.has_multiple_telescopes = config.get('multiple_telescopes', False)
+        self.experiment_name = config.get('experiment_name', False)
         self.runs_key = config.get('runs_key', 'runs')
 
         if self.has_multiple_telescopes:
@@ -67,6 +67,7 @@ class AICTConfig:
         if 'separator' in config:
             self.separator = SeparatorConfig(config)
 
+        # this is not needed for FACT but CTA
         self.array_event_column = config.get('array_event_column')
         self.id_to_tel = config.get('id_to_tel')
         self.id_to_cam = config.get('id_to_cam')
@@ -90,9 +91,6 @@ class DispConfig:
         'cog_x_column',
         'cog_y_column',
         'delta_column',
- #       'array_event_column',  ## maybe new config for cta disp?
- #       'id_to_tel',  #
- #       'id_to_cam',  # 
     ]
 
     def __init__(self, config):
@@ -127,16 +125,11 @@ class DispConfig:
         self.cog_x_column = model_config.get('cog_x_column', 'cog_x')
         self.cog_y_column = model_config.get('cog_y_column', 'cog_y')
         self.delta_column = model_config.get('delta_column', 'delta')
-        # these are not used by fact (new config object??)
-#        self.array_event_column = model_config.get('array_event_column')
-#        self.id_to_tel = model_config.get('id_to_tel')
-#        self.id_to_cam = model_config.get('id_to_cam')
 
         cols = {
             self.cog_x_column,
             self.cog_y_column,
             self.delta_column,
-        #    self.id_to_tel,
         }
 
         cols.update(model_config['features'])
@@ -163,7 +156,6 @@ class EnergyConfig:
         'columns_to_read_apply',
         'target_column',
         'log_target',
-        'class_name',
     ]
 
     def __init__(self, config):
@@ -197,7 +189,6 @@ class EnergyConfig:
         self.columns_to_read_apply = list(cols)
         cols.add(self.target_column)
         self.columns_to_read_train = list(cols)
-        self.class_name = model_config.get('class_name')
 
 
 class SeparatorConfig:
