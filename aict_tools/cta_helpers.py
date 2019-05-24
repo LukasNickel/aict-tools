@@ -22,10 +22,9 @@ def horizontal_to_camera_cta_simtel(df):
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', category=MissingFrameAttributeWarning)
 
-        alt_pointing = u.Quantity(df.pointing_altitude.to_numpy(), u.rad, copy=False)
-        az_pointing = u.Quantity(df.pointing_azimuth.to_numpy(), u.rad, copy=False)
+        alt_pointing = u.Quantity(df.pointing_altitude.to_numpy(), u.deg, copy=False)
+        az_pointing = u.Quantity(df.pointing_azimuth.to_numpy(), u.deg, copy=False)
         fl = u.Quantity(df.focal_length.to_numpy(), u.m, copy=False)
-        # im preprocessing als rad speichern?
         mc_alt = u.Quantity(df.mc_alt.to_numpy(), u.deg, copy=False)
         mc_az = u.Quantity(df.mc_az.to_numpy(), u.deg, copy=False)
 
@@ -55,8 +54,8 @@ def camera_to_horizontal_cta_simtel(df):
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', category=MissingFrameAttributeWarning)
 
-        alt_pointing = u.Quantity(df.pointing_altitude.to_numpy(), u.rad, copy=False)
-        az_pointing = u.Quantity(df.pointing_azimuth.to_numpy(), u.rad, copy=False)
+        alt_pointing = u.Quantity(df.pointing_altitude.to_numpy(), u.deg, copy=False)
+        az_pointing = u.Quantity(df.pointing_azimuth.to_numpy(), u.deg, copy=False)
         x = u.Quantity(df.source_x_prediction.to_numpy(), u.m, copy=False)
         y = u.Quantity(df.source_y_prediction.to_numpy(), u.m, copy=False)
         fl = u.Quantity(df.focal_length.to_numpy(), u.m, copy=False)
