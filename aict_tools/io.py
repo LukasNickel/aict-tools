@@ -211,14 +211,13 @@ def read_telescope_data(path, aict_config, columns=None, feature_generation_conf
         tel_event_index = read_data(
             file_path=path,
             key=aict_config.telescope_events_key,
-            # columns=telescope_event_columns,
-            columns=['run_id', 'array_event_id', 'width'],  ###?????????
+            columns=['run_id', 'array_event_id', 'width'],  # this is just any tel_event column?
         ).reset_index(drop=True)
 
         array_event_index = read_data(
             file_path=path,
             key=aict_config.array_events_key,
-            columns=['run_id', 'array_event_id', 'num_triggered_telescopes'],
+            columns=['run_id', 'array_event_id', 'num_triggered_telescopes'], # this is just any array_event column?
         ).reset_index(drop=True).iloc[first:last]
 
         tel_event_index['index_in_file'] = tel_event_index.index
