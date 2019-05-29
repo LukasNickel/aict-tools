@@ -35,10 +35,10 @@ class AICTConfig:
             return cls(yaml.load(f))
 
     def __init__(self, config):
-        self.experiment_name = config.get('experiment_name', False)
+        self.experiment_name = config.get('experiment_name', 'FACT')
         self.runs_key = config.get('runs_key', 'runs')
 
-        if self.has_multiple_telescopes:
+        if self.experiment_name.lower() == 'cta':
             self.telescope_events_key = config.get('telescope_events_key', 'events')
             self.array_events_key = config.get('array_events_key', 'array_events')
 

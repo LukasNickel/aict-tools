@@ -105,7 +105,7 @@ class TelescopeDataIterator:
         self.aict_config = aict_config
         self.columns = columns
         self.feature_generation_config = feature_generation_config
-        if aict_config.has_multiple_telescopes:
+        if aict_config.experiment_name.lower() == 'cta':
             self.n_rows = get_number_of_rows_in_table(path, aict_config.array_events_key)
         else:
             self.n_rows = get_number_of_rows_in_table(path, aict_config.telescope_events_key)
@@ -194,7 +194,7 @@ def read_telescope_data(path, aict_config, columns=None, feature_generation_conf
     '''
     telescope_event_columns = None
     array_event_columns = None
-    if aict_config.has_multiple_telescopes:
+    if aict_config.experiment_name.lower() == 'cta':
         join_keys = [aict_config.run_id_column, aict_config.array_event_id_column]
         if columns:
             t = aict_config.array_events_key
