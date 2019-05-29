@@ -35,7 +35,7 @@ def main(configuration_path, data_path, model_path, chunksize, n_jobs, yes, verb
     config = AICTConfig.from_yaml(configuration_path)
     model_config = config.energy
 
-    prediction_column_name = config.class_name + 'energy_prediction'
+    prediction_column_name = config.class_name + '_energy_prediction'
 
 
     if config.experiment_name.lower() == 'cta':
