@@ -6,13 +6,10 @@ from tqdm import tqdm
 import numpy as np
 
 from fact.io import write_data
-from ..io import pickle_model, read_telescope_data
+from ..io import save_model, read_telescope_data
 from ..preprocessing import convert_to_float32
 from ..configuration import AICTConfig
-import logging
-
-logging.basicConfig()
-log = logging.getLogger()
+from ..logging import setup_logging
 
 
 @click.command()
@@ -36,7 +33,7 @@ def main(configuration_path, signal_path, predictions_path, model_path, verbose)
         Allowed extensions are .pkl and .pmml.
         If extension is .pmml, then both pmml and pkl file will be saved
     '''
-    logging.getLogger().setLevel(logging.DEBUG if verbose else logging.INFO)
+    log = setup_logging(verbose=verbose)
 
     config = AICTConfig.from_yaml(configuration_path)
     model_config = config.energy
@@ -108,11 +105,11 @@ def main(configuration_path, signal_path, predictions_path, model_path, verbose)
     regressor.fit(df_train.values, target.values)
 
     log.info('Pickling model to {} ...'.format(model_path))
-    pickle_model(
+    save_model(
         regressor,
         feature_names=list(df_train.columns),
         model_path=model_path,
-        label_text='estimated_energy',
+        label_text=model_config.output_name,
     )
 
 

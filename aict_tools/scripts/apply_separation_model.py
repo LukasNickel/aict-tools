@@ -1,12 +1,16 @@
 import click
-from sklearn.externals import joblib
-import logging
 from tqdm import tqdm
 import pandas as pd
 
 from ..apply import predict_separator
-from ..io import append_column_to_hdf5, read_telescope_data_chunked, drop_prediction_column, HDFColumnAppender
+from ..io import (
+    append_column_to_hdf5,
+    read_telescope_data_chunked,
+    drop_prediction_column,
+    load_model,
+)
 from ..configuration import AICTConfig
+from ..logging import setup_logging
 
 
 @click.command()
@@ -28,32 +32,25 @@ def main(configuration_path, data_path, model_path, chunksize, yes, verbose):
     MODEL_PATH: Path to the pickled model.
 
     The program adds the following columns to the inputfile:
-        <class_name>_prediction: the output of model.predict_proba for the
+        `output_name`: the output of model.predict_proba for the
         class name given in the config file.
 
-    If the class name is not given in the config file, the default value of "gamma"
-    will be used.
+    If `output_name` is not given in the config file,
+    the default value of "gamma_prediction" will be used.
     '''
-    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
-    log = logging.getLogger()
+    log = setup_logging(verbose=verbose)
 
     config = AICTConfig.from_yaml(configuration_path)
     model_config = config.separator
 
-    prediction_column_name = config.class_name + '_prediction'
-
-    if config.experiment_name.lower() == 'cta':
-        group_name = config.array_events_key
-    else:
-        group_name = config.telescope_events_key
-
+    prediction_column_name = model_config.output_name
     drop_prediction_column(
         data_path, group_name=group_name, 
         column_name=prediction_column_name, yes=yes
     )
 
     log.debug('Loading model')
-    model = joblib.load(model_path)
+    model = load_model(model_path)
     log.debug('Loaded model')
 
     df_generator = read_telescope_data_chunked(
@@ -65,20 +62,21 @@ def main(configuration_path, data_path, model_path, chunksize, yes, verbose):
     if config.experiment_name.lower() == 'cta':
         chunked_frames = []
 
-    with HDFColumnAppender(data_path, config.telescope_events_key) as appender:
-        for df_data, start, stop in tqdm(df_generator):
+    table = config.telescope_events_key
+    for df_data, start, stop in tqdm(df_generator):
 
-            prediction = predict_separator(df_data[model_config.features], model)
+        prediction = predict_separator(df_data[model_config.features], model)
 
-            if config.experiment_name.lower() == 'cta':
-                d = df_data[['run_id', 'array_event_id']].copy()
-                d[prediction_column_name] = prediction
-                chunked_frames.append(d)
+        if config.has_multiple_telescopes:
+            d = df_data[['run_id', 'array_event_id']].copy()
+            d[prediction_column_name] = prediction
+            chunked_frames.append(d)
 
-            appender.add_data(prediction, prediction_column_name, start, stop)
+        append_column_to_hdf5(data_path, prediction, table, prediction_column_name)
 
     # combine predictions
-    if config.experiment_name.lower() == 'cta':
+    if config.has_multiple_telescopes:
+        array_table = config.array_events_key
         d = pd.concat(chunked_frames).groupby(
             ['run_id', 'array_event_id'], sort=False
         ).agg(['mean', 'std'])
@@ -86,10 +84,10 @@ def main(configuration_path, data_path, model_path, chunksize, yes, verbose):
         std = d[prediction_column_name]['std'].values
 
         append_column_to_hdf5(
-            data_path, mean, config.array_events_key, prediction_column_name + '_mean'
+            data_path, mean, array_table, prediction_column_name + '_mean'
         )
         append_column_to_hdf5(
-            data_path, std, config.array_events_key, prediction_column_name + '_std'
+            data_path, std, array_table, prediction_column_name + '_std'
         )
 
 

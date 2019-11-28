@@ -1,13 +1,26 @@
 from setuptools import setup, find_packages
 from os import path
+import re
 
 d = path.abspath(path.dirname(__file__))
 with open(path.join(d, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
+with open('aict_tools/__init__.py', 'r') as f:
+    version = re.search(r'__version__ = \'(\d+[.]\d+[.]\d+)\'', f.read()).groups()[0]
+
+extras_require = {
+    'pmml': [
+        'sklearn2pmml',
+        'jpmml_evaluator @ https://github.com/jpmml/jpmml-evaluator-python/archive/0.2.2.tar.gz',
+    ],
+    'onnx': ['skl2onnx', 'onnxmltools', 'onnxruntime~=1.0'],
+}
+extras_require['all'] = list({dep for deps in extras_require.values() for dep in deps})
+
 setup(
     name='aict_tools',
-    version='0.13.1',
+    version=version,
     description='Artificial Intelligence for Imaging Atmospheric Cherenkov Telescopes',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -30,11 +43,11 @@ setup(
         'pyfact>=0.16.0',
         'python-dateutil',  # in anaconda
         'pytz',             # in anaconda
-        'pyyaml',             # in anaconda
-        'scikit-learn~=0.20.0',  # See PEP 440, compatible releases
-        'sklearn2pmml',
+        'ruamel.yaml>=0.15.0',      # in anaconda
+        'scikit-learn~=0.21.0',  # See PEP 440, compatible releases
         'tqdm',
     ],
+    extras_require=extras_require,
     zip_safe=False,
     entry_points={
         'console_scripts': [
@@ -52,7 +65,6 @@ setup(
             'aict_apply_cuts = aict_tools.scripts.apply_cuts:main',
             'aict_convert_pandas2h5py = aict_tools.scripts.convert_pandas2h5py:main',
             'fact_to_dl3 = aict_tools.scripts.fact_to_dl3:main',
-            'cta_to_dl2 = aict_tools.scripts.cta_to_dl2:main',
             'aict_apply_stereo_disp = aict_tools.scripts.calculate_stereo_disp:main',
         ],
     },

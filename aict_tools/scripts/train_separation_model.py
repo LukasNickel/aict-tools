@@ -5,15 +5,12 @@ from sklearn.calibration import CalibratedClassifierCV
 from tqdm import tqdm
 import numpy as np
 from sklearn import metrics
-import logging
 from fact.io import check_extension, write_data
 
 from ..configuration import AICTConfig
-from ..io import pickle_model, read_telescope_data
+from ..io import save_model, read_telescope_data
 from ..preprocessing import convert_to_float32
-
-logging.basicConfig()
-log = logging.getLogger()
+from ..logging import setup_logging
 
 
 @click.command()
@@ -39,14 +36,14 @@ def main(configuration_path, signal_path, background_path, predictions_path, mod
     MODEL_PATH: Path to save the model to. Allowed extensions are .pkl and .pmml.
         If extension is .pmml, then both pmml and pkl file will be saved
     '''
-
-    logging.getLogger().setLevel(logging.DEBUG if verbose else logging.INFO)
+    log = setup_logging(verbose=verbose)
 
     check_extension(predictions_path)
-    check_extension(model_path, allowed_extensions=['.pmml', '.pkl'])
+    check_extension(model_path, allowed_extensions=['.pmml', '.pkl', '.onnx'])
 
     config = AICTConfig.from_yaml(configuration_path)
     model_config = config.separator
+    label_text = model_config.output_name
 
     log.info('Loading signal data')
     df_signal = read_telescope_data(
@@ -138,11 +135,11 @@ def main(configuration_path, signal_path, background_path, predictions_path, mod
         log.info('Training model on complete dataset')
         classifier.fit(X, y)
 
-    log.info('Pickling model to {} ...'.format(model_path))
-    pickle_model(
-        classifier=classifier,
+    log.info('Saving model to {} ...'.format(model_path))
+    save_model(
+        classifier,
         model_path=model_path,
-        label_text='label',
+        label_text=label_text,
         feature_names=list(df_training.columns)
     )
 

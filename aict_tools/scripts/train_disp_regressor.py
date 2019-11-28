@@ -7,12 +7,11 @@ import numpy as np
 
 from fact.io import write_data
 from fact.coordinates.utils import horizontal_to_camera
-from ..io import pickle_model, read_telescope_data
+from ..io import save_model, read_telescope_data
 from ..preprocessing import convert_to_float32, calc_true_disp
 from ..feature_generation import feature_generation
 from ..configuration import AICTConfig
-
-import logging
+from ..logging import setup_logging
 
 
 @click.command()
@@ -44,9 +43,7 @@ def main(configuration_path, signal_path, predictions_path, disp_model_path, sig
 
     
     '''
-
-    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
-    log = logging.getLogger()
+    log = setup_logging(verbose=verbose)
 
     config = AICTConfig.from_yaml(configuration_path)
     model_config = config.disp
@@ -99,6 +96,9 @@ def main(configuration_path, signal_path, predictions_path, disp_model_path, sig
     target_disp = df['true_disp'].loc[df_train.index]
     target_sign = df['true_sign'].loc[df_train.index]
 
+    if model_config.log_target is True:
+        target_disp = np.log(target_disp)
+
     log.info('Starting {} fold cross validation... '.format(
         model_config.n_cross_validations
     ))
@@ -122,6 +122,10 @@ def main(configuration_path, signal_path, predictions_path, disp_model_path, sig
 
         disp_regressor.fit(cv_x_train, cv_disp_train)
         cv_disp_prediction = disp_regressor.predict(cv_x_test)
+
+        if model_config.log_target is True:
+            cv_disp_test = np.exp(cv_disp_test)
+            cv_disp_prediction = np.exp(cv_disp_prediction)
 
         sign_classifier.fit(cv_x_train, cv_sign_train)
         cv_sign_prediction = sign_classifier.predict(cv_x_test)
@@ -165,18 +169,18 @@ def main(configuration_path, signal_path, predictions_path, disp_model_path, sig
     sign_classifier.fit(df_train.values, target_sign.values)
 
     log.info('Pickling disp model to {} ...'.format(disp_model_path))
-    pickle_model(
+    save_model(
         disp_regressor,
         feature_names=list(df_train.columns),
         model_path=disp_model_path,
-        label_text='disp',
+        label_text='abs_disp',
     )
     log.info('Pickling sign model to {} ...'.format(sign_model_path))
-    pickle_model(
+    save_model(
         sign_classifier,
         feature_names=list(df_train.columns),
         model_path=sign_model_path,
-        label_text='disp',
+        label_text='sign_disp',
     )
 
 

@@ -5,7 +5,6 @@ import h5py
 from tqdm import tqdm
 
 from .preprocessing import convert_to_float32, check_valid_rows
-from .feature_generation import feature_generation
 from .io import get_number_of_rows_in_table
 
 log = logging.getLogger(__name__)
@@ -57,12 +56,15 @@ def predict_energy(df, model, log_target=False):
     return energy_prediction
 
 
-def predict_disp(df, abs_model, sign_model):
+def predict_disp(df, abs_model, sign_model, log_target=False):
     df_features = convert_to_float32(df)
     valid = check_valid_rows(df_features)
 
     disp_abs = abs_model.predict(df_features.loc[valid].values)
     disp_sign = sign_model.predict(df_features.loc[valid].values)
+
+    if log_target:
+        disp_abs = np.exp(disp_abs)
 
     disp_prediction = np.full(len(df_features), np.nan)
     disp_prediction[valid] = disp_abs * disp_sign
@@ -80,27 +82,23 @@ def predict_separator(df, model):
     return score
 
 
-def create_mask_h5py(input_path, selection_config, key='events', start=None, end=None, mode="r"):
+def create_mask_h5py(infile, selection_config, n_events, key='events', start=None, end=None):
+    start = start or 0
+    end = min(n_events, end) if end else n_events
 
-    with h5py.File(input_path) as infile:
+    n_selected = end - start
+    mask = np.ones(n_selected, dtype=bool)
 
-        n_events = get_number_of_rows_in_table(input_path, key=key, mode=mode)
-        start = start or 0
-        end = min(n_events, end) if end else n_events
+    for name, (operator, value) in selection_config.items():
 
-        n_selected = end - start
-        mask = np.ones(n_selected, dtype=bool)
-
-        for name, (operator, value) in selection_config.items():
-
-            before = mask.sum()
-            mask = np.logical_and(
-                mask, OPERATORS[operator](infile[key][name][start:end], value)
-            )
-            after = mask.sum()
-            log.debug('Cut "{} {} {}" removed {} events'.format(
-                name, operator, value, before - after
-            ))
+        before = mask.sum()
+        mask = np.logical_and(
+            mask, OPERATORS[operator](infile[key][name][start:end], value)
+        )
+        after = mask.sum()
+        log.debug('Cut "{} {} {}" removed {} events'.format(
+            name, operator, value, before - after
+        ))
 
     return mask
 
@@ -118,7 +116,7 @@ def apply_cuts_h5py_chunked(
     outputpath. Apply cuts to chunksize events at a time.
     '''
 
-    n_events = get_number_of_rows_in_table(input_path, key=key, mode="r")
+    n_events = get_number_of_rows_in_table(input_path, key=key, )
     n_chunks = int(np.ceil(n_events / chunksize))
     log.debug('Using {} chunks of size {}'.format(n_chunks, chunksize))
 
@@ -130,7 +128,7 @@ def apply_cuts_h5py_chunked(
             end = min(n_events, (chunk + 1) * chunksize)
 
             mask = create_mask_h5py(
-                input_path, selection_config, key=key, start=start, end=end
+                infile, selection_config, n_events, key=key, start=start, end=end
             )
 
             for name, dataset in infile[key].items():

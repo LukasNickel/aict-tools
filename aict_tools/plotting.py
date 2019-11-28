@@ -29,6 +29,7 @@ def plot_regressor_confusion(performace_df, log_xy=True, log_z=True, ax=None):
         range=[limits, limits],
         norm=LogNorm() if log_z is True else None,
     )
+    img.set_rasterized(True)
     ax.set_aspect(1)
     ax.figure.colorbar(img, ax=ax)
 
@@ -130,7 +131,8 @@ def plot_probabilities(performace_df, model, ax=None, classnames=('Proton', 'Gam
     if isinstance(model, CalibratedClassifierCV):
         model = model.base_estimator
 
-    bin_edges = np.linspace(0, 1, model.n_estimators + 2)
+    n_bins = (model.n_estimators + 1) if hasattr(model, 'n_estimators') else 100
+    bin_edges = np.linspace(0, 1, n_bins + 1)
 
     for label, df in performace_df.groupby('label'):
         ax.hist(
@@ -150,7 +152,8 @@ def plot_precision_recall(performace_df, model, ax=None, beta=0.1):
     if isinstance(model, CalibratedClassifierCV):
         model = model.base_estimator
 
-    thresholds = np.linspace(0, 1, model.n_estimators + 2)
+    n_bins = (model.n_estimators + 1) if hasattr(model, 'n_estimators') else 100
+    thresholds = np.linspace(0, 1, n_bins + 1)
     precision = []
     recall = []
     f_beta = []
@@ -177,49 +180,51 @@ def plot_precision_recall(performace_df, model, ax=None, beta=0.1):
     ax.figure.tight_layout()
 
 
-def plot_feature_importances(model, feature_names, ax=None):
+def plot_feature_importances(model, feature_names, ax=None, max_features=20):
 
     ax = ax or plt.gca()
 
-    y_pos = np.arange(len(feature_names[:20]))
+    ypos = np.arange(1, len(feature_names[:max_features]) + 1)
+    feature_names = np.array(feature_names)
 
     if isinstance(model, CalibratedClassifierCV):
         model = model.base_estimator
 
     if hasattr(model, 'estimators_'):
+        feature_importances = np.array([
+            est.feature_importances_
+            for est in np.array(model.estimators_).ravel()
+        ])
 
-        df = pd.DataFrame(index=feature_names)
+        idx = np.argsort(np.median(feature_importances, axis=0))[-max_features:]
 
-        feature_importances = [est.feature_importances_ for est in model.estimators_]
-
-        df['mean'] = np.mean(feature_importances, axis=0)
-        df['p_low'] = np.percentile(feature_importances, 15.87, axis=0)
-        df['p_high'] = np.percentile(feature_importances, 84.13, axis=0)
-
-        df.sort_values('mean', inplace=True)
-        df = df.tail(20)
-
-        ax.barh(
-            y_pos,
-            df['mean'].values,
-            xerr=[df['mean'] - df['p_low'], df['p_high'] - df['mean']],
+        ax.boxplot(
+            feature_importances[:, idx],
+            vert=False,
+            sym='',  # no outliers
+            medianprops={'color': 'C0'}
         )
+
+        y_jittered = np.random.normal(ypos, 0.1, size=feature_importances[:, idx].shape)
+
+        for imp, y in zip(feature_importances.T[idx], y_jittered.T):
+            res = ax.scatter(imp, y, color='C1', alpha=0.5, lw=0, s=5)
+            res.set_rasterized(True)
 
     else:
-        df = pd.DataFrame(index=feature_names)
-        df['mean'] = model.feature_importances_
-
-        df.sort_values('mean', inplace=True)
-        df = df.tail(20)
+        feature_importances = model.feature_importances_
+        idx = np.argsort(feature_importances)[-max_features:]
 
         ax.barh(
-            y_pos,
-            df['mean'].values
+            ypos,
+            feature_importances[idx]
         )
 
-    ax.set_ylim(-0.5, y_pos.max() + 0.5)
-    ax.set_yticks(y_pos)
-    ax.set_yticklabels(df.index.values)
-    ax.set_xlabel('Feature importances')
-    ax.set_title('The {} most important features'.format(len(feature_names[:20])))
+
+    ax.set_ylim(ypos[0] - 0.5, ypos[-1] + 0.5)
+    ax.set_yticks(ypos)
+    ax.set_yticklabels(feature_names[idx])
+    ax.set_xlabel('Feature importance')
+    if len(feature_names) > max_features:
+        ax.set_title('The {} most important features'.format(max_features))
     ax.figure.tight_layout()

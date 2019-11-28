@@ -1,13 +1,73 @@
-import yaml
-from sklearn import ensemble
+from ruamel.yaml import YAML
 from collections import namedtuple
 from .features import find_used_source_features
 import numpy as np
+from sklearn.base import is_classifier, is_regressor
+import logging
+
+from sklearn import ensemble
+from sklearn import linear_model
+from sklearn import neighbors
+from sklearn import svm
+from sklearn import tree
+from sklearn import naive_bayes
+
+
+sklearn_modules = {
+    'ensemble': ensemble,
+    'linear_model': linear_model,
+    'neighbors': neighbors,
+    'svm': svm,
+    'tree': tree,
+    'naive_bayes': naive_bayes,
+}
+
+
+log = logging.getLogger(__name__)
+
 
 FeatureGenerationConfig = namedtuple(
     'FeatureGenerationConfig',
     ['needed_columns', 'features']
 )
+
+yaml = YAML(typ='safe')
+
+
+def print_supported_classifiers():
+    logging.info('Supported Classifiers:')
+    for name, module in sklearn_modules.items():
+        for cls_name in dir(module):
+            cls = getattr(module, cls_name)
+            if is_classifier(cls):
+                logging.info(name + '.' + cls.__name__)
+
+
+def print_supported_regressors():
+    logging.info('Supported Regressors:')
+    for name, module in sklearn_modules.items():
+        for cls_name in dir(module):
+            cls = getattr(module, cls_name)
+            if is_regressor(cls):
+                logging.info(name + '.' + cls.__name__)
+
+
+def load_regressor(config):
+    try:
+        return eval(config, {}, sklearn_modules)
+    except (NameError, AttributeError):
+        log.error('Unsupported Regressor: "' + config + '"')
+        print_supported_regressors()
+        raise
+
+
+def load_classifier(config):
+    try:
+        return eval(config, {}, sklearn_modules)
+    except (NameError, AttributeError):
+        log.error('Unsupported Regressor: "' + config + '"')
+        print_supported_classifiers()
+        raise
 
 
 class AICTConfig:
@@ -22,11 +82,7 @@ class AICTConfig:
         'disp',
         'energy',
         'separator',
-        'experiment_name',
-        'class_name',
-        'array_event_column',
-        'id_to_tel',
-        'id_to_cam', 
+        'has_multiple_telescopes',
     )
 
     @classmethod
@@ -55,7 +111,6 @@ class AICTConfig:
 
         self.seed = config.get('seed', 0)
         np.random.seed(self.seed)
-        self.class_name = config.get('class_name', 'gamma')
 
         self.disp = self.energy = self.separator = None
         if 'disp' in config:
@@ -91,13 +146,15 @@ class DispConfig:
         'cog_x_column',
         'cog_y_column',
         'delta_column',
+        'log_target',
     ]
 
     def __init__(self, config):
         model_config = config['disp']
 
-        self.disp_regressor = eval(model_config['disp_regressor'])
-        self.sign_classifier = eval(model_config['sign_classifier'])
+        self.disp_regressor = load_regressor(model_config['disp_regressor'])
+        self.sign_classifier = load_classifier(model_config['sign_classifier'])
+        self.log_target = model_config.get('log_target', False)
 
         self.n_signal = model_config.get('n_signal', None)
         k = 'n_cross_validations'
@@ -155,12 +212,13 @@ class EnergyConfig:
         'columns_to_read_train',
         'columns_to_read_apply',
         'target_column',
+        'output_name',
         'log_target',
     ]
 
     def __init__(self, config):
         model_config = config['energy']
-        self.model = eval(model_config['regressor'])
+        self.model = load_regressor(model_config['regressor'])
         self.features = model_config['features'].copy()
 
         self.n_signal = model_config.get('n_signal', None)
@@ -170,6 +228,7 @@ class EnergyConfig:
         self.target_column = model_config.get(
             'target_column', 'corsika_event_header_total_energy'
         )
+        self.output_name = model_config.get('output_name', 'gamma_energy_prediction')
         self.log_target = model_config.get('log_target', False)
 
         gen_config = model_config.get('feature_generation')
@@ -202,11 +261,12 @@ class SeparatorConfig:
         'columns_to_read_train',
         'columns_to_read_apply',
         'calibrate_classifier',
+        'output_name',
     ]
 
     def __init__(self, config):
         model_config = config['separator']
-        self.model = eval(model_config['classifier'])
+        self.model = load_classifier(model_config['classifier'])
         self.features = model_config['features'].copy()
 
         self.n_signal = model_config.get('n_signal', None)
@@ -214,6 +274,7 @@ class SeparatorConfig:
         k = 'n_cross_validations'
         setattr(self, k, model_config.get(k, config.get(k, 5)))
         self.calibrate_classifier = model_config.get('calibrate_classifier', False)
+        self.output_name = model_config.get('output_name', 'gamma_prediction')
 
         gen_config = model_config.get('feature_generation')
         source_features = find_used_source_features(self.features, gen_config)
