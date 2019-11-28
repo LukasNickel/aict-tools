@@ -3,6 +3,7 @@ import numpy as np
 from sklearn.externals import joblib
 import logging
 from tqdm import tqdm
+tqdm.pandas()
 import pandas as pd
 
 from ..io import append_column_to_hdf5, HDFColumnAppender, read_telescope_data_chunked, get_column_names_in_file, remove_column_from_file, drop_prediction_column
@@ -132,12 +133,30 @@ def main(configuration_path, data_path, disp_model_path, sign_model_path, chunks
                 from ..cta_helpers import camera_to_horizontal_cta_simtel
                 df_data['source_x_prediction'] = source_x
                 df_data['source_y_prediction'] = source_y
+                
                 source_alt, source_az = camera_to_horizontal_cta_simtel(df_data)                
                 d['source_alt'] = source_alt
                 d['source_az'] = source_az
+
+                source_x_2 = df_data[cog_x_column] - disp * np.cos(df_data[delta_column])
+                source_y_2 = df_data[cog_y_column] - disp * np.sin(df_data[delta_column])
+                df_data['source_x_prediction_2'] = source_x_2
+                df_data['source_y_prediction_2'] = source_y_2
+                source_alt_2, source_az_2 = camera_to_horizontal_cta_simtel(df_data, x_key='source_x_prediction_2', y_key='source_y_prediction_2')
+                d['source_alt_2'] = source_alt_2
+                d['source_az_2'] = source_az_2
+
+                cog_alt, cog_az = camera_to_horizontal_cta_simtel(df_data, x_key='x', y_key='y')
+                d['cog_alt'] = cog_alt
+                d['cog_az'] = cog_az
                 chunked_frames.append(d)
+
                 appender.add_data(source_alt, 'source_alt_prediction', start, stop)
                 appender.add_data(source_az, 'source_az_prediction', start, stop)
+                appender.add_data(source_alt_2, 'source_alt_prediction_2', start, stop)
+                appender.add_data(source_az_2, 'source_az_prediction_2', start, stop)
+                appender.add_data(source_x_2, 'source_x_prediction_2', start, stop)
+                appender.add_data(source_y_2, 'source_y_prediction_2', start, stop)
             
             appender.add_data(source_x, 'source_x_prediction', start, stop)
             appender.add_data(source_y, 'source_y_prediction', start, stop)
@@ -148,21 +167,31 @@ def main(configuration_path, data_path, disp_model_path, sign_model_path, chunks
         d = pd.concat(chunked_frames)
         d = d.groupby(
             ['run_id', 'array_event_id'], sort=False
-        ).agg(['mean', 'std'])
+        )
+
+
+        d_ = d.agg(['mean', 'std', 'median'])
+
         append_column_to_hdf5(
-            data_path, d['source_alt']['mean'].values, config.array_events_key, 'source_alt' + '_mean'
+             data_path, d_['source_alt']['mean'].values, config.array_events_key, 'source_alt' + '_mean'
         )
         append_column_to_hdf5(
-            data_path, d['source_alt']['std'].values, config.array_events_key, 'source_alt' + '_std'
+             data_path, d_['source_alt']['median'].values, config.array_events_key, 'source_alt' + '_median'
         )
         append_column_to_hdf5(
-            data_path, d['source_az']['mean'].values, config.array_events_key, 'source_az' + '_mean'
+            data_path, d_['source_alt']['std'].values, config.array_events_key, 'source_alt' + '_std'
+        )
+
+        append_column_to_hdf5(
+            data_path, d_['source_az']['mean'].values, config.array_events_key, 'source_az' + '_mean'
         )
         append_column_to_hdf5(
-            data_path, d['source_az']['std'].values, config.array_events_key, 'source_az' + '_std'
+            data_path, d_['source_az']['std'].values, config.array_events_key, 'source_az' + '_std'
+        )
+        append_column_to_hdf5(
+            data_path, d_['source_az']['median'].values, config.array_events_key, 'source_az' + '_median'
         )
 
 
 if __name__ == '__main__':
-    # pylint: disable=no-value-for-parameter
     main()

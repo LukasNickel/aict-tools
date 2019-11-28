@@ -44,6 +44,8 @@ setup(
             'aict_apply_energy_regressor = aict_tools.scripts.apply_energy_regressor:main',
             'aict_train_disp_regressor = aict_tools.scripts.train_disp_regressor:main',
             'aict_apply_disp_regressor = aict_tools.scripts.apply_disp_regressor:main',
+            'aict_train_triple_disp_regressor = aict_tools.scripts.train_triple_disp_regressor:main',
+            'aict_apply_triple_disp_regressor = aict_tools.scripts.apply_triple_disp_regressor:main',
             'aict_split_data = aict_tools.scripts.split_data:main',
             'aict_plot_separator_performance = aict_tools.scripts.plot_separator_performance:main',
             'aict_plot_regressor_performance = aict_tools.scripts.plot_regressor_performance:main',
@@ -51,6 +53,7 @@ setup(
             'aict_convert_pandas2h5py = aict_tools.scripts.convert_pandas2h5py:main',
             'fact_to_dl3 = aict_tools.scripts.fact_to_dl3:main',
             'cta_to_dl2 = aict_tools.scripts.cta_to_dl2:main',
+            'aict_apply_stereo_disp = aict_tools.scripts.calculate_stereo_disp:main',
         ],
     },
     classifiers=[

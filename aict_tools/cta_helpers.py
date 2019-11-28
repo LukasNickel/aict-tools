@@ -12,8 +12,9 @@ from ctapipe.coordinates import CameraFrame
 from ctapipe.instrument import TelescopeDescription
 
 from tqdm import tqdm
-from joblib import delayed, Parallel
-
+import pandas as pd
+from joblib import Parallel, delayed
+import multiprocessing
 
 log = logging.getLogger(__name__)
 
@@ -50,14 +51,15 @@ def horizontal_to_camera_cta_simtel(df):
         return cam_coords.x.to_value(u.m), cam_coords.y.to_value(u.m)
 
 
-def camera_to_horizontal_cta_simtel(df):
+
+def camera_to_horizontal_cta_simtel(df, x_key='source_x_prediction', y_key='source_y_prediction'):
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', category=MissingFrameAttributeWarning)
 
         alt_pointing = u.Quantity(df.pointing_altitude.to_numpy(), u.rad, copy=False)
         az_pointing = u.Quantity(df.pointing_azimuth.to_numpy(), u.rad, copy=False)
-        x = u.Quantity(df.source_x_prediction.to_numpy(), u.m, copy=False)
-        y = u.Quantity(df.source_y_prediction.to_numpy(), u.m, copy=False)
+        x = u.Quantity(df[x_key].to_numpy(), u.m, copy=False)
+        y = u.Quantity(df[y_key].to_numpy(), u.m, copy=False)
         fl = u.Quantity(df.focal_length.to_numpy(), u.m, copy=False)
         
         altaz = AltAz()
@@ -84,3 +86,14 @@ def camera_to_horizontal_cta_simtel(df):
 
         # rad verwenden? 
         return source_altaz.alt.to_value(u.deg), source_altaz.az.to_value(u.deg)
+
+
+
+'thanks SO: https://stackoverflow.com/questions/26187759/parallelize-apply-after-pandas-groupby'
+def temp_func(func, name, group, **kwargs):
+    #print([(x, type(x)) for x in kwargs])
+    return func(group, **kwargs), name 
+
+def apply_parallel(dfGrouped, func, n_jobs=1, **kwargs):
+    retLst, top_index = zip(*Parallel(n_jobs=n_jobs)(delayed(temp_func)(func, name, group, **kwargs) for name, group in tqdm(dfGrouped)))
+    return pd.concat(retLst, keys=top_index, sort=False)
