@@ -91,10 +91,10 @@ class AICTConfig:
             return cls(yaml.load(f))
 
     def __init__(self, config):
-        self.experiment_name = config.get('experiment_name', 'FACT')
+        self.has_multiple_telescopes = config.get('multiple_telescopes', False)
         self.runs_key = config.get('runs_key', 'runs')
 
-        if self.experiment_name.lower() == 'cta':
+        if self.has_multiple_telescopes:
             self.telescope_events_key = config.get('telescope_events_key', 'events')
             self.array_events_key = config.get('array_events_key', 'array_events')
 
@@ -121,11 +121,6 @@ class AICTConfig:
 
         if 'separator' in config:
             self.separator = SeparatorConfig(config)
-
-        # this is not needed for FACT but CTA
-        self.array_event_column = config.get('array_event_column')
-        self.id_to_tel = config.get('id_to_tel')
-        self.id_to_cam = config.get('id_to_cam')
 
 
 

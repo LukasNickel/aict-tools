@@ -65,7 +65,7 @@ def main(configuration_path, signal_path, predictions_path, disp_model_path, sig
     )
     log.info('Total number of events: {}'.format(len(df)))
 
-    if config.experiment_name.lower() == 'cta': 
+    if config.has_multiple_telescopes == True: 
         from ..cta_helpers import horizontal_to_camera_cta_simtel
         source_x, source_y = horizontal_to_camera_cta_simtel(df)
         # cta uses deg instead of rad

@@ -45,9 +45,14 @@ def main(configuration_path, data_path, model_path, chunksize, yes, verbose):
 
     prediction_column_name = model_config.output_name
     drop_prediction_column(
-        data_path, group_name=group_name, 
+        data_path, group_name=config.telescope_events_key,
         column_name=prediction_column_name, yes=yes
     )
+    if config.has_multiple_telescopes:
+        drop_prediction_column(
+            data_path, group_name=config.array_events_key,
+            column_name=prediction_column_name, yes=yes
+        )
 
     log.debug('Loading model')
     model = load_model(model_path)
@@ -59,7 +64,7 @@ def main(configuration_path, data_path, model_path, chunksize, yes, verbose):
     )
 
     # collect predictions to calculate mean/std
-    if config.experiment_name.lower() == 'cta':
+    if config.has_multiple_telescopes == True:
         chunked_frames = []
 
     table = config.telescope_events_key
@@ -80,6 +85,8 @@ def main(configuration_path, data_path, model_path, chunksize, yes, verbose):
         d = pd.concat(chunked_frames).groupby(
             ['run_id', 'array_event_id'], sort=False
         ).agg(['mean', 'std'])
+        #from IPython import embed; embed()
+
         mean = d[prediction_column_name]['mean'].values
         std = d[prediction_column_name]['std'].values
 

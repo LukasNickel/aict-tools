@@ -64,36 +64,21 @@ def main(configuration_path, data_path, disp_model_path, sign_model_path, chunks
     n_del_cols = 0
 
     for column in columns_to_delete:
-        if config.experiment_name.lower() == 'cta':
-            drop_prediction_column(
-                data_path, group_name=config.array_events_key,
-                column_name=column, yes=yes
-            )
+        if column in get_column_names_in_file(data_path, config.telescope_events_key):
+            if not yes:
+                click.confirm(
+                    'Dataset "{}" exists in file, overwrite?'.format(column),
+                    abort=True,
+                )
+                yes = True
+            remove_column_from_file(data_path, config.telescope_events_key, column)
             log.warn("Deleted {} from the feature set.".format(column))
             n_del_cols += 1
-        else:
-            drop_prediction_column(
-                data_path, group_name=config.telescope_events_key,
-                column_name=column, yes=yes
-            )            
-            log.warn("Deleted {} from the feature set.".format(column))
-            n_del_cols += 1
-
-        # check if this should be added in again
-        # if column in get_column_names_in_file(data_path, config.telescope_events_key):
-        #     if not yes:
-        #         click.confirm(
-        #             'Dataset "{}" exists in file, overwrite?'.format(column),
-        #             abort=True,
-        #         )
-        #         yes = True
-        #     remove_column_from_file(data_path, config.telescope_events_key, column)
-        #     log.warn("Deleted {} from the feature set.".format(column))
-        #     n_del_cols += 1
 
     if n_del_cols > 0:
         log.warn("Source dependent features need to be calculated from the predicted source possition. "
                  + "Use e.g. `fact_calculate_theta` from https://github.com/fact-project/pyfact.")
+
 
     log.info('Loading model')
     disp_model = load_model(disp_model_path)
@@ -111,63 +96,57 @@ def main(configuration_path, data_path, disp_model_path, sign_model_path, chunks
 
     log.info('Predicting on data...')
 
-    cog_x_column = model_config.cog_x_column
-    cog_y_column = model_config.cog_y_column
-    delta_column = model_config.delta_column
+
     # for cta collect results to calculate mean and std later
-    if config.experiment_name.lower() == 'cta':
+    if config.has_multiple_telescopes == True:
         chunked_frames = []
 
-    with HDFColumnAppender(data_path, config.telescope_events_key) as appender:
-        for df_data, start, stop in tqdm(df_generator):
+    for df_data, start, stop in tqdm(df_generator):
+        if config.has_multiple_telescopes == True:
+            df_data[model_config.delta_column] = np.deg2rad(df_data[model_config.delta_column])
+        disp = predict_disp(
+            df_data[model_config.features], disp_model, sign_model,
+            log_target=model_config.log_target,
+        )
+        #from IPython import embed; embed()
+        source_x = df_data[model_config.cog_x_column] + disp * np.cos(df_data[model_config.delta_column])
+        source_y = df_data[model_config.cog_y_column] + disp * np.sin(df_data[model_config.delta_column])
 
-            disp = predict_disp(
-                df_data[model_config.features], disp_model, sign_model
-            )
-            # cta uses deg instead of rad
-            if config.experiment_name.lower() == 'cta':
-                df_data[delta_column] = np.deg2rad(df_data[delta_column])
+        key = config.telescope_events_key
+        append_column_to_hdf5(data_path, source_x, key, 'source_x_prediction')
+        append_column_to_hdf5(data_path, source_y, key, 'source_y_prediction')
+        append_column_to_hdf5(data_path, disp, key, 'disp_prediction')
 
-            source_x = df_data[cog_x_column] + disp * np.cos(df_data[delta_column])
-            source_y = df_data[cog_y_column] + disp * np.sin(df_data[delta_column])
+        # collect alt/az predictions to save mean/std over telescope predictions
+        if config.has_multiple_telescopes == True:
+            d = df_data[['run_id', 'array_event_id']].copy()
+            from ..cta_helpers import camera_to_horizontal_cta_simtel
 
-            # collect alt/az predictions to save mean/std over telescope predictions
-            if config.experiment_name.lower() == 'cta':
-                d = df_data[['run_id', 'array_event_id']].copy()
-                from ..cta_helpers import camera_to_horizontal_cta_simtel
-                df_data['source_x_prediction'] = source_x
-                df_data['source_y_prediction'] = source_y
-                
-                source_alt, source_az = camera_to_horizontal_cta_simtel(df_data)                
-                d['source_alt'] = source_alt
-                d['source_az'] = source_az
+            df_data['source_x_prediction'] = source_x
+            df_data['source_y_prediction'] = source_y
+            source_alt, source_az = camera_to_horizontal_cta_simtel(df_data)                
+            d['source_alt'] = source_alt
+            d['source_az'] = source_az
 
-                source_x_2 = df_data[cog_x_column] - disp * np.cos(df_data[delta_column])
-                source_y_2 = df_data[cog_y_column] - disp * np.sin(df_data[delta_column])
-                df_data['source_x_prediction_2'] = source_x_2
-                df_data['source_y_prediction_2'] = source_y_2
-                source_alt_2, source_az_2 = camera_to_horizontal_cta_simtel(df_data, x_key='source_x_prediction_2', y_key='source_y_prediction_2')
-                d['source_alt_2'] = source_alt_2
-                d['source_az_2'] = source_az_2
+            source_x_2 = df_data[model_config.cog_x_column] - disp * np.cos(df_data[model_config.delta_column])
+            source_y_2 = df_data[model_config.cog_y_column] - disp * np.sin(df_data[model_config.delta_column])
 
-                cog_alt, cog_az = camera_to_horizontal_cta_simtel(df_data, x_key='x', y_key='y')
-                d['cog_alt'] = cog_alt
-                d['cog_az'] = cog_az
-                chunked_frames.append(d)
+            df_data['source_x_prediction_2'] = source_x_2
+            df_data['source_y_prediction_2'] = source_y_2
+            source_alt_2, source_az_2 = camera_to_horizontal_cta_simtel(df_data, x_key='source_x_prediction_2', y_key='source_y_prediction_2')
+            d['source_alt_2'] = source_alt_2
+            d['source_az_2'] = source_az_2
 
-                appender.add_data(source_alt, 'source_alt_prediction', start, stop)
-                appender.add_data(source_az, 'source_az_prediction', start, stop)
-                appender.add_data(source_alt_2, 'source_alt_prediction_2', start, stop)
-                appender.add_data(source_az_2, 'source_az_prediction_2', start, stop)
-                appender.add_data(source_x_2, 'source_x_prediction_2', start, stop)
-                appender.add_data(source_y_2, 'source_y_prediction_2', start, stop)
+            append_column_to_hdf5(data_path, source_alt, key, 'source_alt_prediction')
+            append_column_to_hdf5(data_path, source_az, key, 'source_az_prediction')
+            append_column_to_hdf5(data_path, source_alt_2, key, 'source_alt_prediction_2')
+            append_column_to_hdf5(data_path, source_az_2, key, 'source_az_prediction_2')
+            append_column_to_hdf5(data_path, source_x_2, key, 'source_x_prediction_2')
+            append_column_to_hdf5(data_path, source_y_2, key, 'source_y_prediction_2')
             
-            appender.add_data(source_x, 'source_x_prediction', start, stop)
-            appender.add_data(source_y, 'source_y_prediction', start, stop)
-            appender.add_data(disp, 'disp_prediction', start, stop)
-
+            chunked_frames.append(d)
     
-    if config.experiment_name.lower() == 'cta':
+    if config.has_multiple_telescopes == True:
         d = pd.concat(chunked_frames)
         d = d.groupby(
             ['run_id', 'array_event_id'], sort=False

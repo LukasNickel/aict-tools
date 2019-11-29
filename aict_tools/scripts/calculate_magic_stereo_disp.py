@@ -11,7 +11,7 @@ from astropy.coordinates.angle_utilities import angular_separation
 import astropy.units as u
 
 from ..cta_helpers import apply_parallel
-from ..io import append_column_to_hdf5, read_telescope_data, get_column_names_in_file, remove_column_from_file, drop_prediction_column
+from ..io import append_column_to_hdf5, HDFColumnAppender, read_telescope_data, get_column_names_in_file, remove_column_from_file, drop_prediction_column
 from ..apply import predict_disp
 from ..configuration import AICTConfig
 
@@ -27,10 +27,10 @@ def pairwise_nearest_disp(group, eps=1.0):
 
     tel_combinations = list(itertools.combinations(group.index, 2))
     for combination in tel_combinations:
-        candidate_1 = group[['source_alt_prediction', 'source_az_prediction']].loc[combination[0]]
-        candidate_2 = group[['source_alt_prediction_2', 'source_az_prediction_2']].loc[combination[0]]
-        candidate_3 = group[['source_alt_prediction', 'source_az_prediction']].loc[combination[1]]
-        candidate_4 = group[['source_alt_prediction_2', 'source_az_prediction_2']].loc[combination[1]]
+        candidate_1 = group[['source_alt_prediction', 'source_az_prediction', 'weights']].loc[combination[0]]
+        candidate_2 = group[['source_alt_prediction_2', 'source_az_prediction_2', 'weights']].loc[combination[0]]
+        candidate_3 = group[['source_alt_prediction', 'source_az_prediction', 'weights']].loc[combination[1]]
+        candidate_4 = group[['source_alt_prediction_2', 'source_az_prediction_2', 'weights']].loc[combination[1]]
         candidates = np.array([candidate_1, candidate_2, candidate_3, candidate_4])
 
         disp_combinations = itertools.combinations(range(4), 2)
@@ -87,8 +87,9 @@ def pairwise_nearest_disp(group, eps=1.0):
 @click.argument('configuration_path', type=click.Path(exists=True, dir_okay=False))
 @click.argument('data_path', type=click.Path(exists=True, dir_okay=False))
 @click.option('-n', '--n-jobs', type=int, help='Number of cores to use')
+@click.option('-w', '--weights', type=str, help='weights for averaging. not in use anymore')
 @click.option('-e', '--eps', default=1.0, multiple=True)
-def main(configuration_path, data_path, n_jobs=1, eps=(1.0,)):
+def main(configuration_path, data_path, n_jobs=1, weights=None, eps=(1.0,)):
     logging.basicConfig(level=logging.INFO)
     log = logging.getLogger()
 
@@ -114,12 +115,26 @@ def main(configuration_path, data_path, n_jobs=1, eps=(1.0,)):
         n_sample=model_config.n_signal
     )
 
+    if weights == 'lw_logsize':
+        return 0
+        df['weights'] = (df['length']/df['width']*np.log10(df['intensity'])).values
+    elif weights == 'sign_proba':
+        return 0
+        df['weights'] = (df['sign_proba']).values
+    else:
+        #return 0
+        df['weights'] = 1
+
     for eps_ in eps:
         df_grouped = df.groupby(['run_id', 'array_event_id'], sort=False)  ##sort false is important!!
         array_df = apply_parallel(df_grouped, pairwise_nearest_disp, n_jobs=n_jobs, eps=eps_)
 
+
         for new_feature in array_df.columns:
-            name = new_feature + '_' + str(eps_)
+            if weights:
+                name = new_feature + '_' + str(weights) + '_' + str(eps_)
+            else:
+                name = new_feature + '_' + str(eps_)
             append_column_to_hdf5(
                 data_path, array_df[new_feature].values, config.array_events_key, name
             )
