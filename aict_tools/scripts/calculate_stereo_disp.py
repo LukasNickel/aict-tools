@@ -35,8 +35,7 @@ def pairwise_nearest_disp(group, eps=1.0):
 
         disp_combinations = itertools.combinations(range(4), 2)
         min_distance = eps * u.deg  # 0.22 in magic?
-        result_alt = np.nan
-        result_az = np.nan
+
         winner = None
         for pair in disp_combinations:
             distance = angular_separation(
@@ -61,23 +60,11 @@ def pairwise_nearest_disp(group, eps=1.0):
         result_df['source_az_pairwise_mean'] = [np.nanmean(az_disps)]
         result_df['source_alt_pairwise_median'] = [np.nanmedian(alt_disps)]
         result_df['source_az_pairwise_median'] = [np.nanmedian(az_disps)]
-        result_df['source_alt_pairwise_clipped'] = [sigma_clipped_stats(alt_disps)[0]]
-        result_df['source_az_pairwise_clipped'] = [sigma_clipped_stats(az_disps)[0]]
-        result_df['source_alt_pairwise_clipped_median'] = [sigma_clipped_stats(alt_disps)[1]]
-        result_df['source_az_pairwise_clipped_median'] = [sigma_clipped_stats(az_disps)[1]]
-        result_df['source_alt_pairwise_set'] = [np.nanmean(list(set(alt_disps)))]
-        result_df['source_az_pairwise_set'] = [np.nanmean(list(set(az_disps)))]
     else:
         result_df['source_alt_pairwise_mean'] = [np.nan]
         result_df['source_az_pairwise_mean'] = [np.nan]
         result_df['source_alt_pairwise_median'] = [np.nan]
         result_df['source_az_pairwise_median'] = [np.nan]
-        result_df['source_alt_pairwise_clipped'] = [np.nan]
-        result_df['source_az_pairwise_clipped'] = [np.nan]
-        result_df['source_alt_pairwise_clipped_median'] = [np.nan]
-        result_df['source_az_pairwise_clipped_median'] = [np.nan]
-        result_df['source_alt_pairwise_set'] = [np.nan]
-        result_df['source_az_pairwise_set'] = [np.nan]
     result_df['num_pairs'] = len(alt_disps)
 
     return result_df
